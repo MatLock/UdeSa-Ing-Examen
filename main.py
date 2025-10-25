@@ -76,3 +76,13 @@ async def endpoint_b(arg_1: str, arg_2: float, arg_3: str):
     # Este es un endpoint POST que recibe un argumento (arg_1) por path y otros dos por query (arg_2 y arg_3).
     return {}
 """
+
+class Payment(BaseModel):
+    payment_id: int
+    payment_amount: float
+    payment_method: str
+
+@app.get("/payments")
+async def get_payments():
+    """Devuelve todos los pagos del sistema"""
+    return load_all_payments()
