@@ -13,7 +13,6 @@ DATA_PATH = "data.json"
 
 app = FastAPI()
 
-
 def load_all_payments():
     with open(DATA_PATH, "r") as f:
         data = json.load(f)
@@ -43,6 +42,11 @@ def save_payment(payment_id, amount, payment_method, status):
         STATUS: status,
     }
     save_payment_data(payment_id, data)
+
+
+@app.post('payments/{payment_id}')
+def create_payment(payment_id: int, request: PaymentRequest):
+    save_payment(payment_id, request.mount, request.method, STATUS_REGISTRADO)
 
 
 """
