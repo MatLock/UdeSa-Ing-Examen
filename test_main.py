@@ -1,12 +1,15 @@
 import unittest
 import json
 import os
-from main import save_payment, load_payment, STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, load_all_payments, get_payments, PaymentRequest
+from main import save_payment, load_payment, STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, load_all_payments, get_payments, PaymentRequest, pay_payment
+from fastapi import HTTPException
 
+# datos de prueba para test payment payment test
 PAYMENT_ID = 1
 PAYMENT_METHOD = 'Paypal'
 PAYMENT_AMOUNT = 10000
 
+# datos de prueba para test payment endpoints
 TEST_DATA = {
     "1": {
         "amount": 10000,
@@ -19,6 +22,17 @@ TEST_DATA = {
         "status": "PAGADO"
     }
 }
+
+# datos de prueba para test pay_payment
+PAYMENT_TO_BE_PAID = {
+    "1": {
+        "amount": 1500,
+        "payment_method": "Debit Card",
+        "status": STATUS_REGISTRADO
+    }
+}
+PAYMENT_ID_TO_PAY = 1
+NON_EXISTENT_PAYMENT_ID = 999
 
 class PaymentTest(unittest.TestCase):
 
@@ -56,3 +70,42 @@ class GetPaymentsEndpointTest(unittest.TestCase):
         self.assertEqual(retrieved_payments, TEST_DATA)
         
         self.assertEqual(len(retrieved_payments), 2)
+
+class PayPaymentEndpointTest(unittest.TestCase):
+
+    def setUp(self):
+        """
+        Prepara el entorno antes de cada test: crea un archivo data.json
+        con un pago en estado 'REGISTRADO'.
+        """
+        with open(DATA_PATH, "w") as f:
+            json.dump(PAYMENT_TO_BE_PAID, f, indent=4)
+
+    def tearDown(self):
+        """
+        Limpia el entorno después de cada test: elimina el archivo data.json.
+        """
+        if os.path.exists(DATA_PATH):
+            os.remove(DATA_PATH)
+
+    async def test_pay_payment_successfully(self):
+        """
+        Prueba que un pago existente se marque correctamente como 'PAGADO'.
+        """
+        response = await pay_payment(PAYMENT_ID_TO_PAY)
+
+        self.assertIsNotNone(response)
+        self.assertEqual(response['status'], STATUS_PAGADO)
+
+        updated_payment_in_db = load_payment(str(PAYMENT_ID_TO_PAY))
+        self.assertEqual(updated_payment_in_db['status'], STATUS_PAGADO)
+
+    async def test_pay_payment_not_found(self):
+        """
+        Prueba que se devuelva un error HTTPException 404
+        cuando se intenta pagar un payment_id que no existe.
+        """
+        with self.assertRaises(HTTPException) as cm:
+            await pay_payment(NON_EXISTENT_PAYMENT_ID)
+
+        self.assertEqual(cm.exception.status_code, 404)
