@@ -140,3 +140,26 @@ async def update_payment(payment_id: int, amount: float, payment_method: str):
     except KeyError:
         # 5. Manejar el error si el payment_id no existe.
         raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
+    
+@app.post("/payments/{payment_id}/revert")
+async def revert_payment(payment_id: int):
+    """
+    Revierte el estado de un pago a 'REGISTRADO'.
+    Si el pago no se encuentra, devuelve un error 404.
+    """
+    try:
+        # 1. Cargar los datos del pago.
+        payment_data = load_payment(str(payment_id))
+
+        # 2. Actualizar el estado a 'REGISTRADO', sin importar su estado actual.
+        payment_data[STATUS] = STATUS_REGISTRADO
+
+        # 3. Guardar los cambios.
+        save_payment_data(str(payment_id), payment_data)
+
+        # 4. Devolver el objeto actualizado como confirmación.
+        return payment_data
+
+    except KeyError:
+        # 5. Manejar el caso de que el ID no exista.
+        raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
