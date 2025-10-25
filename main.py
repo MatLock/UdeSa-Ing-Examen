@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 STATUS = "status"
@@ -93,5 +93,25 @@ async def get_payments():
     return load_all_payments()
 
 @app.post('payments/{payment_id}')
-def create_payment(payment_id: int, request: PaymentRequest):
+async def create_payment(payment_id: int, request: PaymentRequest):
     save_payment(payment_id, request.mount, request.method, STATUS_REGISTRADO)
+
+@app.post("/payments/{payment_id}/pay")
+async def pay_payment(payment_id: int):
+    try:
+        # 1. Cargar los datos del pago específico.
+        #    Las claves en el JSON son strings, por eso convertimos el ID.
+        payment_data = load_payment(str(payment_id))
+
+        # 2. Modificar el estado del pago.
+        payment_data[STATUS] = STATUS_PAGADO
+
+        # 3. Guardar los datos actualizados en el archivo JSON.
+        save_payment_data(str(payment_id), payment_data)
+
+        # 4. Devolver el objeto actualizado como confirmación.
+        return payment_data
+
+    except KeyError:
+        # 5. Manejo de error: si el payment_id no existe en los datos,
+        raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
