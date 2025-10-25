@@ -1,7 +1,7 @@
 name: workflow-release.yml
 on:
-  push:
-    branches: [fix-cicd]
+  release:
+    types: [ published ]
 
 jobs:
   build:
