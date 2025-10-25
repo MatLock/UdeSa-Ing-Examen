@@ -2,13 +2,14 @@ import unittest
 import json
 import os
 from main import save_payment, load_payment,  load_all_payments, get_payments, PaymentRequest, pay_payment, update_payment,  revert_payment, save_all_payments
-from main import STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, AMOUNT, METHOD_CREDIT_CARD, METHOD_PAYPAL
+from main import STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, AMOUNT, METHOD_CREDIT_CARD, METHOD_PAYPAL
 from fastapi import HTTPException
 
 # datos de prueba para test payment payment test
 PAYMENT_ID = 1
 PAYMENT_METHOD = 'Paypal'
 PAYMENT_AMOUNT = 10000
+DATA_PATH = 'data-test.json'
 
 # datos de prueba para test payment endpoints
 TEST_DATA = {
