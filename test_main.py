@@ -1,8 +1,8 @@
 import unittest
 import json
 import os
-from main import save_payment, load_payment,  load_all_payments, get_payments, PaymentRequest, pay_payment, update_payment,  revert_payment
-from main import STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, AMOUNT 
+from main import save_payment, load_payment,  load_all_payments, get_payments, PaymentRequest, pay_payment, update_payment,  revert_payment, save_all_payments
+from main import STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, AMOUNT, METHOD_CREDIT_CARD, METHOD_PAYPAL
 from fastapi import HTTPException
 
 # datos de prueba para test payment payment test
@@ -34,6 +34,8 @@ PAYMENT_TO_BE_PAID = {
 }
 PAYMENT_ID_TO_PAY = 1
 NON_EXISTENT_PAYMENT_ID = 999
+
+STATUS = "status"
 
 class PaymentTest(unittest.TestCase):
 
@@ -206,3 +208,86 @@ class RevertPaymentEndpointTest(unittest.TestCase):
 
         # 2. Verificación (Assert)
         self.assertEqual(cm.exception.status_code, 404)
+
+class PayPaymentValidationTest(unittest.TestCase):
+
+    def tearDown(self):
+        """ Limpia el archivo de datos después de cada test. """
+        if os.path.exists(DATA_PATH):
+            os.remove(DATA_PATH)
+
+    # --- Tests para Tarjeta de Crédito ---
+
+    async def test_pay_credit_card_fails_if_amount_is_too_high(self):
+        """
+        Verifica que el pago FALLE (409) si el monto de Tarjeta de Crédito es >= $10,000.
+        """
+        test_data = {
+            "1": {"amount": 10000, "payment_method": METHOD_CREDIT_CARD, "status": STATUS_REGISTRADO}
+        }
+        save_all_payments(test_data)
+
+        with self.assertRaises(HTTPException) as cm:
+            await pay_payment(1)
+        
+        self.assertEqual(cm.exception.status_code, 409)
+        self.assertEqual(load_payment("1")[STATUS], STATUS_FALLIDO)
+
+    async def test_pay_credit_card_fails_if_another_is_registered(self):
+        """
+        Verifica que el pago FALLE (409) si ya existe otro pago con
+        Tarjeta de Crédito en estado REGISTRADO.
+        """
+        test_data = {
+            "1": {"amount": 500, "payment_method": METHOD_CREDIT_CARD, "status": STATUS_REGISTRADO},
+            "2": {"amount": 1000, "payment_method": METHOD_CREDIT_CARD, "status": STATUS_REGISTRADO}
+        }
+        save_all_payments(test_data)
+
+        # Ejecución y Verificación (Act & Assert)
+        with self.assertRaises(HTTPException) as cm:
+            await pay_payment(2)  # Intentamos pagar el segundo
+        
+        self.assertEqual(cm.exception.status_code, 409)
+        self.assertEqual(load_payment("2")[STATUS], STATUS_FALLIDO)
+        # El primer pago no debe haber sido afectado
+        self.assertEqual(load_payment("1")[STATUS], STATUS_REGISTRADO)
+
+    # --- Tests para PayPal ---
+
+    async def test_pay_paypal_fails_if_amount_is_too_high(self):
+        """
+        Verifica que el pago FALLE (409) si el monto de PayPal es >= $5,000.
+        """
+        # Preparación (Arrange)
+        test_data = {
+            "1": {"amount": 5000, "payment_method": METHOD_PAYPAL, "status": STATUS_REGISTRADO}
+        }
+        save_all_payments(test_data)
+
+        # Ejecución y Verificación (Act & Assert)
+        with self.assertRaises(HTTPException) as cm:
+            await pay_payment(1)
+        
+        self.assertEqual(cm.exception.status_code, 409)
+        self.assertEqual(load_payment("1")[STATUS], STATUS_FALLIDO)
+
+    # --- Test de Éxito ---
+
+    async def test_pay_payment_succeeds_with_valid_conditions(self):
+        """
+        Verifica que un pago VÁLIDO (ej. Tarjeta de Crédito < 10000)
+        se procesa correctamente a PAGADO.
+        """
+        # Preparación (Arrange)
+        test_data = {
+            "1": {"amount": 9999.99, "payment_method": METHOD_CREDIT_CARD, "status": STATUS_REGISTRADO}
+        }
+        save_all_payments(test_data)
+
+        # Ejecución (Act)
+        response = await pay_payment(1)
+        
+        # Verificación (Assert)
+        self.assertEqual(response[STATUS], STATUS_PAGADO)
+        self.assertEqual(load_payment("1")[STATUS], STATUS_PAGADO)
