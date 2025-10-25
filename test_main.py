@@ -1,7 +1,8 @@
 import unittest
 import json
 import os
-from main import save_payment, load_payment, STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, load_all_payments, get_payments, PaymentRequest, pay_payment, update_payment, AMOUNT
+from main import save_payment, load_payment,  load_all_payments, get_payments, PaymentRequest, pay_payment, update_payment,  revert_payment
+from main import STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, AMOUNT 
 from fastapi import HTTPException
 
 # datos de prueba para test payment payment test
@@ -154,4 +155,54 @@ class UpdatePaymentEndpointTest(unittest.TestCase):
         with self.assertRaises(HTTPException) as cm:
             await update_payment(non_existent_id, 100, "Cash")
 
+        self.assertEqual(cm.exception.status_code, 404)
+
+class RevertPaymentEndpointTest(unittest.TestCase):
+
+    def setUp(self):
+        """
+        Prepara el entorno creando un data.json con un pago en estado 'PAGADO',
+        para que la acción de revertir tenga un efecto visible.
+        """
+        self.initial_data = PAYMENT_TO_BE_PAID
+        with open(DATA_PATH, "w") as f:
+            json.dump(self.initial_data, f, indent=4)
+
+    def tearDown(self):
+        """
+        Limpia el entorno eliminando el archivo data.json.
+        """
+        if os.path.exists(DATA_PATH):
+            os.remove(DATA_PATH)
+
+    async def test_revert_payment_successfully(self):
+        """
+        Prueba que un pago en estado 'PAGADO' se revierte
+        correctamente al estado 'REGISTRADO'.
+        """
+        payment_id_to_revert = 1
+
+        # 1. Ejecución (Act)
+        response = await revert_payment(payment_id_to_revert)
+
+        # 2. Verificación (Assert)
+        self.assertEqual(response['status'], STATUS_REGISTRADO)
+        
+        reverted_payment_in_db = load_payment(str(payment_id_to_revert))
+        self.assertEqual(reverted_payment_in_db['status'], STATUS_REGISTRADO)
+        self.assertEqual(reverted_payment_in_db[AMOUNT], self.initial_data["1"][AMOUNT])
+
+
+    async def test_revert_payment_not_found(self):
+        """
+        Prueba que se devuelve un HTTPException 404 al intentar
+        revertir un payment_id que no existe.
+        """
+        non_existent_id = 12345
+        
+        with self.assertRaises(HTTPException) as cm:
+            # 1. Ejecución (Act)
+            await revert_payment(non_existent_id)
+
+        # 2. Verificación (Assert)
         self.assertEqual(cm.exception.status_code, 404)
