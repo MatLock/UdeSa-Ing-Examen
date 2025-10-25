@@ -95,21 +95,6 @@ save_payment_data(payment_id, data)
 # * POST en el path /payments/{payment_id}/pay que intente.
 # * POST en el path /payments/{payment_id}/revert que revertir el pago.
 
-
-"""
-# Ejemplos:
-
-@app.get("/path/{arg_1}")
-async def endpoint_a(arg_1: str, arg_2: float):
-    # Este es un endpoint GET que recibe un argumento (arg_1) por path y otro por query (arg_2).
-    return {}
-
-@app.post("/path/{arg_1}/some_action")
-async def endpoint_b(arg_1: str, arg_2: float, arg_3: str):
-    # Este es un endpoint POST que recibe un argumento (arg_1) por path y otros dos por query (arg_2 y arg_3).
-    return {}
-"""
-
 class Payment(BaseModel):
     payment_id: int
     payment_amount: float
@@ -125,12 +110,9 @@ async def get_payments():
     """Devuelve todos los pagos del sistema"""
     return load_all_payments()
 
-@app.post('payments/{payment_id}')
+@app.post('/payments/{payment_id}')
 async def create_payment(payment_id: int, request: PaymentRequest):
-    save_payment(payment_id, request.mount, request.method, STATUS_REGISTRADO)
-
-# [Ticket-5] POST /payments/{payment_id}/update    
-# [Ticket-10] POST /payments/{payment_id}/update   -- Validación del pago 
+    save_payment(payment_id, request.amount, request.method, STATUS_REGISTRADO)
 
 @app.post("/payments/{payment_id}/pay")
 async def pay_payment(payment_id: int):
