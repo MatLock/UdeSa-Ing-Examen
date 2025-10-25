@@ -1,5 +1,6 @@
 import json
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 STATUS = "status"
 AMOUNT = "amount"
@@ -44,11 +45,6 @@ def save_payment(payment_id, amount, payment_method, status):
     save_payment_data(payment_id, data)
 
 
-@app.post('payments/{payment_id}')
-def create_payment(payment_id: int, request: PaymentRequest):
-    save_payment(payment_id, request.mount, request.method, STATUS_REGISTRADO)
-
-
 """
 # Ejemplo de uso:
 # Actualizando el status de un pago:
@@ -86,7 +82,16 @@ class Payment(BaseModel):
     payment_amount: float
     payment_method: str
 
+class PaymentRequest(BaseModel):
+    amount: float
+    method: str
+
+
 @app.get("/payments")
 async def get_payments():
     """Devuelve todos los pagos del sistema"""
     return load_all_payments()
+
+@app.post('payments/{payment_id}')
+def create_payment(payment_id: int, request: PaymentRequest):
+    save_payment(payment_id, request.mount, request.method, STATUS_REGISTRADO)
