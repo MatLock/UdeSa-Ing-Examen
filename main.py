@@ -96,11 +96,11 @@ async def get_payments():
 async def create_payment(payment_id: int, request: PaymentRequest):
     save_payment(payment_id, request.mount, request.method, STATUS_REGISTRADO)
 
+# [Ticket-5] POST /payments/{payment_id}/update    
 @app.post("/payments/{payment_id}/pay")
 async def pay_payment(payment_id: int):
     try:
         # 1. Cargar los datos del pago específico.
-        #    Las claves en el JSON son strings, por eso convertimos el ID.
         payment_data = load_payment(str(payment_id))
 
         # 2. Modificar el estado del pago.
@@ -114,4 +114,29 @@ async def pay_payment(payment_id: int):
 
     except KeyError:
         # 5. Manejo de error: si el payment_id no existe en los datos,
+        raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
+
+# [Ticket-4] POST /payments/{payment_id}/update    
+@app.post("/payments/{payment_id}/update")
+async def update_payment(payment_id: int, amount: float, payment_method: str):
+    """
+    Actualiza el monto y el método de un pago existente.
+    Si el pago no se encuentra, devuelve un error 404.
+    """
+    try:
+        # 1. Cargar los datos del pago específico.
+        payment_data = load_payment(str(payment_id))
+
+        # 2. Actualizar los campos con los valores de los parámetros de query.
+        payment_data[AMOUNT] = amount
+        payment_data[PAYMENT_METHOD] = payment_method
+
+        # 3. Guardar los datos actualizados en el archivo.
+        save_payment_data(str(payment_id), payment_data)
+
+        # 4. Devolver el objeto completo y actualizado.
+        return payment_data
+
+    except KeyError:
+        # 5. Manejar el error si el payment_id no existe.
         raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")

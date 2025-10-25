@@ -1,7 +1,7 @@
 import unittest
 import json
 import os
-from main import save_payment, load_payment, STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, load_all_payments, get_payments, PaymentRequest, pay_payment
+from main import save_payment, load_payment, STATUS_REGISTRADO, STATUS_FALLIDO, STATUS_PAGADO, DATA_PATH, load_all_payments, get_payments, PaymentRequest, pay_payment, update_payment, AMOUNT
 from fastapi import HTTPException
 
 # datos de prueba para test payment payment test
@@ -107,5 +107,51 @@ class PayPaymentEndpointTest(unittest.TestCase):
         """
         with self.assertRaises(HTTPException) as cm:
             await pay_payment(NON_EXISTENT_PAYMENT_ID)
+
+        self.assertEqual(cm.exception.status_code, 404)
+
+class UpdatePaymentEndpointTest(unittest.TestCase):
+
+    def setUp(self):
+        self.initial_data = PAYMENT_TO_BE_PAID
+        with open(DATA_PATH, "w") as f:
+            json.dump(self.initial_data, f, indent=4)
+
+    def tearDown(self):
+        """
+        Limpia el entorno eliminando el archivo data.json.
+        """
+        if os.path.exists(DATA_PATH):
+            os.remove(DATA_PATH)
+
+    async def test_update_payment_successfully(self):
+        """
+        Prueba que un pago existente se actualiza correctamente
+        con los nuevos valores de amount y payment_method.
+        """
+        payment_id_to_update = 1
+        new_amount = 9999.99
+        new_method = "Credit Card"
+
+        # 1. Ejecución (Act)
+        response = await update_payment(payment_id_to_update, new_amount, new_method)
+
+        # 2. Verificación (Assert)
+        self.assertEqual(response[AMOUNT], new_amount)
+        self.assertEqual(response[PAYMENT_METHOD], new_method)
+        self.assertEqual(response['status'], self.initial_data[str(payment_id_to_update)]['status'])
+
+        updated_payment_in_db = load_payment(str(payment_id_to_update))
+        self.assertEqual(updated_payment_in_db[AMOUNT], new_amount)
+
+    async def test_update_payment_not_found(self):
+        """
+        Prueba que se devuelve un HTTPException 404 al intentar
+        actualizar un payment_id que no existe.
+        """
+        non_existent_id = 404
+        
+        with self.assertRaises(HTTPException) as cm:
+            await update_payment(non_existent_id, 100, "Cash")
 
         self.assertEqual(cm.exception.status_code, 404)
