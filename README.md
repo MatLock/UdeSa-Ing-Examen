@@ -76,6 +76,7 @@ Sigue estos pasos para configurar el entorno de desarrollo local.
     "uvicorn[standard]"
     pytest
     pytest-asyncio
+    coverage
     ```
 
 4.  **Instalar las dependencias:**
@@ -91,7 +92,7 @@ Sigue estos pasos para configurar el entorno de desarrollo local.
 Para iniciar el servidor de la API, ejecuta el siguiente comando desde la raíz del proyecto:
 
 ```bash
-uvicorn main:app --reload
+python -m uvicorn main:app --reload
 ```
 
 El servidor estará disponible en `http://127.0.0.1:8000`. Puedes acceder a la documentación interactiva de la API (Swagger UI) en `http://127.0.0.1:8000/docs`.
@@ -105,7 +106,7 @@ El proyecto cuenta con una suite de tests unitarios para garantizar la calidad y
 Para ejecutar todos los tests, utiliza `pytest` desde la raíz del proyecto:
 
 ```bash
-pytest
+coverage run -m unittest discover
 ```
 
 El resultado mostrará todos los tests que pasaron y, en caso de haberlos, los que fallaron con un reporte detallado del error.
@@ -117,9 +118,24 @@ El resultado mostrará todos los tests que pasaron y, en caso de haberlos, los q
 ```
 .
 ├── main.py             # Lógica de la API y endpoints
+├── payment_method      # Patron Strategy con modos de pagos
+├── payment_state       # Patron State con estados de un pago 
 ├── test_main.py        # Tests unitarios
 ├── data.json           # Archivo de almacenamiento de datos
 └── requirements.txt    # Dependencias del proyecto
 ```
+
+## CI/CD
+La carpeta .github/workflows contiene 2 archivos:
+`workflow-test.yml` este workflow maneja el evento de creacion de un pull request. Compilará el proyecto, ejecutará los test
+y comentará el pull request informando el coverage 
+`workflow-release.yml` este workflow maneja el evento de release a través de github
+cada vez que se crea un tag y se publica una release. el Mismo actualizará la versión
+deployada en render 
+
+### Diagrama UML
+
+![Diagrama UML del sistema de pagos](uml.png)
+
 
 -----
