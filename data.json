@@ -1,17 +1,32 @@
 {
     "1": {
         "amount": 3000.0,
-        "payment_method": "Tarjeta de Cr\u00e9dito",
+        "payment_method": "Tarjeta de Credito",
         "status": "REGISTRADO"
     },
     "2": {
-        "amount": 10040.5,
+        "amount": 1040.5,
         "payment_method": "paypal",
         "status": "REGISTRADO"
     },
     "3": {
-        "amount": 12040.5,
+        "amount": 1240.5,
         "payment_method": "paypal",
         "status": "PAGADO"
+    },
+    "4": {
+        "amount": 6000.0,
+        "status": "REGISTRADO",
+        "payment_method": "Tarjeta de Credito"
+    },
+    "5": {
+        "amount": 2932.0,
+        "status": "REGISTRADO",
+        "payment_method": "Tarjeta De Credito"
+    },
+    "6": {
+        "amount": 4000.0,
+        "status": "PAGADO",
+        "payment_method": "Paypal"
     }
 }

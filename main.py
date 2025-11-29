@@ -1,19 +1,14 @@
 import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from payment_method.PaymentType import *
+from payment_state.PaymentState import *
+from Payment import Payment
 
 STATUS = "status"
 AMOUNT = "amount"
 PAYMENT_METHOD = "payment_method"
-
-STATUS_REGISTRADO = "REGISTRADO"
-STATUS_PAGADO = "PAGADO"
-STATUS_FALLIDO = "FALLIDO"
-
 DATA_PATH = "data.json"
-
-METHOD_CREDIT_CARD = "Tarjeta de Crédito"
-METHOD_PAYPAL = "PayPal"
 
 app = FastAPI()
 
@@ -39,53 +34,20 @@ def save_payment_data(payment_id, data):
     save_all_payments(all_data)
 
 
-def save_payment(payment_id, amount, payment_method, status):
-    data = {
-        AMOUNT: amount,
-        PAYMENT_METHOD: payment_method,
-        STATUS: status,
-    }
-    save_payment_data(payment_id, data)
-
-# --- Nueva función de validación ---
-def validate_payment_rules(payment_id_to_process: str, payment_data: dict, all_payments: dict):
-    """
-    Aplica las reglas de negocio para un intento de pago.
-    Lanza un ValueError si alguna regla no se cumple.
-    """
-    amount = payment_data[AMOUNT]
-    method = payment_data[PAYMENT_METHOD]
-
-    if method == METHOD_CREDIT_CARD:
-        # Regla 1.1: Monto máximo para Tarjeta de Crédito
-        if amount >= 10000:
-            raise ValueError("El pago con Tarjeta de Crédito no puede ser mayor o igual a $10,000.")
-
-        # Regla 1.2: No más de 1 pago REGISTRADO con este método
-        registered_credit_card_payments = 0
-        for pid, pdata in all_payments.items():
-            if pid != payment_id_to_process and \
-               pdata[PAYMENT_METHOD] == METHOD_CREDIT_CARD and \
-               pdata[STATUS] == STATUS_REGISTRADO:
-                registered_credit_card_payments += 1
-        
-        if registered_credit_card_payments > 0:
-            raise ValueError("Ya existe otro pago con Tarjeta de Crédito pendiente de procesamiento.")
-
-    elif method == METHOD_PAYPAL:
-        # Regla 2.1: Monto máximo para PayPal
-        if amount >= 5000:
-            raise ValueError("El pago con PayPal no puede ser mayor o igual a $5,000.")
-
-
-"""
-# Ejemplo de uso:
-# Actualizando el status de un pago:
-data = load_payment(payment_id)
-data[STATUS] = STATUS_PAGADO
-save_payment_data(payment_id, data)
-"""
-
+def save_payment(payment_id, amount, payment_method):
+    payment_type = PaypalPayment() if METHOD_PAYPAL == payment_method else CreditCardPayment()
+    payment_type.validate(amount)
+    new_payment = Payment(payment_id, amount,
+                          RegisteredPayment(),
+                          payment_type)
+    save_payment_data(payment_id, new_payment.to_json())
+    
+def create_payment_state(state):
+    if STATUS_REGISTRADO == state:
+        return RegisteredPayment()
+    if STATUS_REGISTRADO == state:
+        return FailedPayment()
+    return PayedPayment()
 
 
 # Endpoints a implementar:
@@ -94,12 +56,6 @@ save_payment_data(payment_id, data)
 # * POST en el path /payments/{payment_id}/update que cambie los parametros de una pago (amount, payment_method)
 # * POST en el path /payments/{payment_id}/pay que intente.
 # * POST en el path /payments/{payment_id}/revert que revertir el pago.
-
-class Payment(BaseModel):
-    payment_id: int
-    payment_amount: float
-    payment_method: str
-
 class PaymentRequest(BaseModel):
     amount: float
     method: str
@@ -112,7 +68,10 @@ async def get_payments():
 
 @app.post('/payments/{payment_id}')
 async def create_payment(payment_id: int, request: PaymentRequest):
-    save_payment(payment_id, request.amount, request.method, STATUS_REGISTRADO)
+    try:
+        save_payment(payment_id, request.amount, request.method)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/payments/{payment_id}/pay")
 async def pay_payment(payment_id: int):
@@ -122,24 +81,25 @@ async def pay_payment(payment_id: int):
     try:
         all_payments = load_all_payments()
         payment_data = all_payments[str(payment_id)]
-
-        # 1. Validar las reglas de negocio ANTES de procesar.
-        validate_payment_rules(str(payment_id), payment_data, all_payments)
-
         # 2. Si la validación es exitosa, se actualiza el estado.
+        payment_type = PaypalPayment() if METHOD_PAYPAL == payment_data['payment_method'] else CreditCardPayment()
+        payment_state = create_payment_state(payment_data['status'])
+        payment = Payment(str(payment_id), payment_data['amount'], payment_state, payment_type)
+        payment.check_transition_valid(STATUS_PAGADO)
+        
         payment_data[STATUS] = STATUS_PAGADO
         save_payment_data(str(payment_id), payment_data)
-
         return payment_data
     
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
+    except Exception as e:
         payment_data = load_payment(str(payment_id))
         payment_data[STATUS] = STATUS_FALLIDO
         save_payment_data(str(payment_id), payment_data)
         raise HTTPException(status_code=409, detail=str(e))
-
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
 
 # [Ticket-4] POST /payments/{payment_id}/update    
 @app.post("/payments/{payment_id}/update")
@@ -151,7 +111,8 @@ async def update_payment(payment_id: int, amount: float, payment_method: str):
     try:
         # 1. Cargar los datos del pago específico.
         payment_data = load_payment(str(payment_id))
-
+        payment_type = PaypalPayment() if METHOD_PAYPAL == payment_method else CreditCardPayment()
+        payment_type.validate(amount)
         # 2. Actualizar los campos con los valores de los parámetros de query.
         payment_data[AMOUNT] = amount
         payment_data[PAYMENT_METHOD] = payment_method
@@ -165,6 +126,9 @@ async def update_payment(payment_id: int, amount: float, payment_method: str):
     except KeyError:
         # 5. Manejar el error si el payment_id no existe.
         raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     
 @app.post("/payments/{payment_id}/revert")
 async def revert_payment(payment_id: int):
@@ -175,7 +139,11 @@ async def revert_payment(payment_id: int):
     try:
         # 1. Cargar los datos del pago.
         payment_data = load_payment(str(payment_id))
-
+        payment_type = PaypalPayment() if METHOD_PAYPAL == payment_data['payment_method'] else CreditCardPayment()
+        payment_state = create_payment_state(payment_data['status'])
+        payment = Payment(str(payment_id), payment_data['amount'], payment_state, payment_type)
+        payment.check_transition_valid(STATUS_REGISTRADO)
+        
         # 2. Actualizar el estado a 'REGISTRADO', sin importar su estado actual.
         payment_data[STATUS] = STATUS_REGISTRADO
 
@@ -188,3 +156,5 @@ async def revert_payment(payment_id: int):
     except KeyError:
         # 5. Manejar el caso de que el ID no exista.
         raise HTTPException(status_code=404, detail=f"Payment with ID {payment_id} not found.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
